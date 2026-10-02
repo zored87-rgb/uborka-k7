@@ -168,6 +168,20 @@ body.notes-mode #notesView{display:block}
 .backup{margin-top:34px}
 .backup h3{font:500 15px "Unbounded","Golos Text",sans-serif;margin:0 0 6px}
 .backup p{font-size:13px;color:var(--muted);margin:0 0 6px}
+/* v2 */
+.pp.idle{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--oak) 60%,transparent)}60%{box-shadow:0 0 0 8px transparent}}
+details.tip{margin-top:10px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--oak);border-radius:10px;padding:10px 14px}
+details.tip summary{cursor:pointer;font-weight:500}
+details.tip summary small{display:block;font-weight:400;font-size:13px;color:var(--oak);margin-top:2px;font-variant-numeric:tabular-nums}
+details.tip ol{margin:8px 0 2px;padding-left:20px;font-size:14px;color:var(--ink)}
+details.tip li{border:0;margin:6px 0}
+section.closed .tip{display:none}
+#cfg{margin-top:12px}
+#cfg .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:14px}
+#cfg .row span{color:var(--muted);min-width:0}
+#cfg input{flex:1;min-width:160px;font:400 16px "Golos Text",sans-serif;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+#cfg input:focus{outline:none;border-color:var(--ink)}
 .backup textarea{display:none;width:100%;min-height:120px;margin-top:10px;font:12px/1.4 ui-monospace,Menlo,monospace;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
 </style>
 </head>
@@ -186,6 +200,11 @@ body.notes-mode #notesView{display:block}
 
 <div id="checkView">
   <div class="legend">полоска слева = особенность этой квартиры</div>
+  <details class="extra" id="cfg"><summary>Настройки квартиры 14</summary>
+    <div class="row"><span>Ванных:</span><span class="chips" id="bathChips" style="margin:0"></span></div>
+    <div class="row"><span>Комод с Welcome-карточкой:</span><input id="dresserIn" type="text" placeholder="например, средняя спальня" enterkeyhint="done" autocomplete="off"></div>
+    <p class="note">Пока не знаешь, оставь как есть. Ответы появятся прямо в чеклисте.</p>
+  </details>
   <main id="list"></main>
   <section id="summary">
     <h2>Время по этапам</h2>
@@ -337,33 +356,64 @@ function makeData(n,targets){
   });
   return d;
 }
+const BATH14={
+  "Полки: чёрный стеллаж и деревянные над унитазом":{t:"Полки", n:"тряпка + универсальное или средство для стекла"},
+  "Зеркала, до раковины":{t:"Зеркала, до раковины", n:"все зеркала. С них сыпется в раковину"},
+  "Туалетная бумага":{n:"запас как был. Сфоткай раскладку, чтобы в следующий раз знать", s:false},
+  "Коврики":{n:"у душа + запасной, как было", s:false},
+  "Полотенца":{n:"у душа и у раковины, запас как было", s:false},
+};
 function apt14(d){
+  d.filter(s=>s.k==="2").forEach(s=>s.items.forEach(it=>{ const r=BATH14[it.t]; if(r) Object.assign(it,r); }));
   d.forEach(s=>{ if(s.h.startsWith("Спальня")) s.items.forEach(it=>{
     if(it.t.startsWith("2 больших полотенца")){ it.t="2 больших полотенца на кровати рулонами: только серые IKEA"; it.n="полосатые, из чёрных коробок в средней спальне. Оттенки разные, это норм. Старые на кровать НЕ класть"; }
   })});
   d.find(s=>s.h==="Спальня 1").items.push({t:"Пересчитать IKEA в чёрных коробках", n:"нужно 6 на 3 кровати. Не хватает: написать Габриэлле, сколько", s:S});
-  d.find(s=>s.h==="Финал").items.unshift({t:"Ящик комода с Welcome-карточкой: 4-5 старых полотенец", n:"любые старые, кроме пляжных", s:S});
+  const dr=(cfg.dresser14||"").trim();
+  d.find(s=>s.h==="Финал").items.unshift({t:"Ящик комода с Welcome-карточкой: 4-5 старых полотенец", n:"любые старые, кроме пляжных. "+(dr?"Комод: "+dr:"Где комод, укажи в «Настройках квартиры 14» вверху"), s:S});
+  if(cfg.baths14===2){
+    const i=d.findIndex(s=>s.k==="2"), b=d[i];
+    const b2=Object.assign({},b,{k:"w2",h:"Ванная 2",items:b.items.map(it=>Object.assign({},it))});
+    b.h="Ванная 1";
+    setTarget(b,20); setTarget(b2,15);
+    d.splice(i+1,0,b2);
+  }
   return d;
 }
+function setTarget(s,t){
+  const base=baseKey(s.k); s.target=t;
+  s.m=(t?"цель "+t+" мин":"")+(DESC[base]?(t?", ":"")+DESC[base]:"");
+}
+const baseKey=k=>k.startsWith("b")?"3":k.startsWith("w")?"2":k;
 // targets in minutes, each set sums to the budget
 const T45={"0":1,"1":4,"2":25,"3":11,"b2":11,"4":10,"5":22,"7":30,"8":6};
 const T14={"0":2,"1":6,"2":35,"3":13,"b2":13,"b3":13,"4":10,"5":30,"7":22,"8":6};
+const LS0={get(k,d){try{const r=localStorage.getItem(k);return r?JSON.parse(r):d}catch(e){return d}}};
+let cfg=Object.assign({baths14:1,dresser14:"",lastApt:0},LS0.get("uborka:cfg",{}));
 const APTS=[
   {id:"45", name:"Pare Ferris 45", key:"uborka:apt:45", budget:120, data:makeData(2,T45)},
   {id:"14", name:"Квартира 14", key:"uborka:apt:14", budget:150, data:apt14(makeData(3,T14))},
 ];
+const rebuild14=()=>{ APTS[1].data=apt14(makeData(3,T14)); };
 const SEED={
-  "45":{items:{},sections:{"0":116000,"1":248000,"2":1517000,"4":661000,"5":1028000,"7":2038000,"8":326000},runs:[{total:8940000,date:"2026-10-02"}]},
-  "14":{items:{},sections:{"0":198000,"1":482000,"2":3087000,"3":897000,"b2":967000,"b3":532000,"4":690000,"5":2031000,"7":3088000},runs:[{total:12011000,date:"2026-10-02"}]}
+  "45":{items:{},sections:{"0":116000,"1":248000,"2":1517000,"4":661000,"5":1028000,"7":2038000,"8":326000},runs:[{total:10080000,date:""},{total:7200000,date:""},{total:8940000,date:"2026-10-02"}]},
+  "14":{items:{},sections:{"0":198000,"1":482000,"2":3087000,"3":897000,"b2":967000,"b3":532000,"4":690000,"5":2031000},floorFinal:3088000,runs:[{total:12011000,date:"2026-10-02"}]}
 };
 
 const LS={get(k,d){try{const r=localStorage.getItem(k);return r?JSON.parse(r):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const fresh=()=>({c:{},start:null,closed:{},log:{},pauses:[],pausedAt:null,base:null,archived:false});
 const load=k=>Object.assign(fresh(),LS.get(k,{}));
-let hist=LS.get("uborka:hist",null); if(!hist){hist=JSON.parse(JSON.stringify(SEED)); LS.set("uborka:hist",hist);}
+let hist=LS.get("uborka:hist",null); if(!hist){hist=JSON.parse(JSON.stringify(SEED)); hist._v=2; LS.set("uborka:hist",hist);}
+// v2 migration: in 14 the floor measurement included the finale; 45 was missing two earlier runs
+if(!hist._v){
+  const h14=hist["14"]; if(h14&&h14.sections&&h14.sections["7"]===3088000&&!h14.sections["8"]){ delete h14.sections["7"]; h14.floorFinal=3088000; }
+  const h45=hist["45"]; if(h45&&h45.runs&&h45.runs.length===1&&h45.runs[0].total===8940000) h45.runs.unshift({total:10080000,date:""},{total:7200000,date:""});
+  hist._v=2; LS.set("uborka:hist",hist);
+}
+const saveCfg=()=>LS.set("uborka:cfg",cfg);
 let notes=LS.get("uborka:notes",[]);
 let view=LS.get("uborka:active",0); if(view!=="notes" && !APTS[view]) view=0;
-let cur=view==="notes"?0:view;
+let cur=view==="notes"?(APTS[cfg.lastApt]?cfg.lastApt:0):view;
 let st=load(APTS[cur].key), all=[];
 const save=()=>LS.set(APTS[cur].key,st);
 const saveHist=()=>LS.set("uborka:hist",hist);
@@ -372,6 +422,7 @@ const A=()=>APTS[cur], D=()=>A().data;
 const H=()=>st.base||hist[A().id]||{items:{},sections:{},runs:[]};
 const list=document.getElementById("list");
 const fmtBudget=m=>Math.floor(m/60)+" ч"+(m%60?" "+(m%60)+" мин":"");
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function fmt(ms,long){
   const s=Math.max(0,Math.round(ms/1000)), h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60;
   const p=n=>String(n).padStart(2,"0");
@@ -385,23 +436,52 @@ function cmp(now,prev){
 }
 function beginSession(){ if(!st.start){ st.start=Date.now(); st.base=JSON.parse(JSON.stringify(hist[A().id]||{items:{},sections:{},runs:[]})); } }
 
+const TIPS={
+ "0":["Свет и окна одним кругом от двери, не останавливаясь на осмотр.","Что сломано или кончилось, записывай через «+ Докупить», когда дойдёшь до комнаты, а не отдельным обходом."],
+ "1":["Бельё сразу в сумку, полотенца тем же кругом: один проход по всем комнатам, без возвратов.","Стирку запускай раньше чайника: машинка идёт дольше всего.","Сразу же, в ванной, нанеси средства (см. «Ванная», совет 1): пока ты заканчиваешь здесь, они уже работают."],
+ "2":["Первым делом нанеси всё сразу: антикаль на краны, стекло, стены душа и раковину, хлорку в унитаз. Средству нужно 5-10 минут, налёт размягчается сам. Пока ждёт, делай гель/шампунь и слив.","Не три сразу после нанесения: средство не успело сработать, и тереть придётся вдвое дольше.","Стекло и стены душа после смыва сгоняй скребком-сквиджи сверху вниз, тряпкой только капли и края. Быстрее, чем насухо тряпкой, и без разводов.","Металлическая губка только по налёту. Вода в Валенсии очень жёсткая: если налёт не сходит, не дави, нанеси антикаль ещё раз и займись другим пунктом.","Все средства, губки и тряпки в одной переноске у двери ванной. Ни одного похода за средством.","Своя тряпка на задачу: отдельная для унитаза, для раковины и полок, сухая микрофибра для стекла и зеркал."],
+ "3":["Простыня: сначала углы по диагонали, потом разгладить ладонью от центра к краям.","Пыль одним кругом по часовой от двери, сверху вниз, не возвращаясь."],
+ "4":["Плед стряхни у двери на балкон или по пути на улицу, не над диваном.","Пыль одним кругом по часовой: верх (полки, картины), потом поверхности, потом рамы и плинтуса.","Чистое не мой: столик и полки протирай только там, где видны пыль и пятна.","Макулатура по фото последней и одним движением: брошюры сразу веером всей стопкой, ключи и карта в центр, папки справа."],
+ "5":["Сначала нанеси: антикаль в мойку, на кран, сушилку и кастрюли с налётом, средство на варочную. Пока работает, делай посуду и полки.","Посуду проверяй стопкой на свет у окна и перетирай только то, где видны капли, а не всё подряд.","Две тряпки на кухню: влажная со средством и сухая микрофибра для стекла и полировки.","Ящики пылесось все подряд за один заход со щелевой насадкой, а не по одному между делами.","Столешница последней, один проход от стены к краю."],
+ "7":["Пылесос: от самой дальней комнаты к выходу, одним маршрутом. Стулья на стол, мелочь с пола сразу.","Мебель двигай один раз: отодвинул, пропылесосил, вернул.","Мой змейкой от дальней стены к двери, отступая назад, чтобы не ходить по мокрому.","Плоская швабра из микрофибры примерно на 15% быстрее верёвочной, и пол сохнет в 4 раза быстрее. Если её нет, стоит попросить у Габриэллы.","Пока сохнет пол в дальних комнатах, делай финальные пункты у входа."],
+ "8":["Финальный обход одним кругом от дальней комнаты к двери. В этом же круге кондиционер, окна, свет."]
+};
+function lastOver(sec){
+  const h=H(), k=sec.k, prev=h.sections&&h.sections[k];
+  const tooSlow=(t,lim)=>t-lim>Math.max(60000,lim*0.1);
+  if(prev && sec.target && tooSlow(prev,sec.target*60000)) return "в прошлый раз "+fmt(prev)+" при цели "+sec.target+" мин";
+  if(k==="7" && !prev && h.floorFinal){
+    const fin=D().find(s=>s.k==="8"), t=(sec.target||0)+(fin&&fin.target||0);
+    if(t && tooSlow(h.floorFinal,t*60000)) return "в прошлый раз пол + финал "+fmt(h.floorFinal)+" при цели "+t+" мин";
+  }
+  return "";
+}
 function render(){
   document.body.classList.toggle("notes-mode",view==="notes");
   renderTabs();
   if(view==="notes"){ renderNotes(); return; }
   list.innerHTML=""; all=[];
   document.getElementById("aptName").textContent=A().name;
+  renderCfg();
   D().forEach(sec=>{
     const k=sec.k;
     const s=document.createElement("section"); s.dataset.k=k;
     const btn=document.createElement("button"); btn.className="sh"; btn.type="button";
-    btn.innerHTML=`<span class="num"></span><h2>${sec.h}<small>${sec.m}</small></h2><span class="cnt"></span><span class="chev" aria-hidden="true"></span>`;
+    btn.innerHTML=`<span class="num"></span><h2>${esc(sec.h)}<small>${esc(sec.m)}</small></h2><span class="cnt"></span><span class="chev" aria-hidden="true"></span>`;
     btn.querySelector(".num").textContent=list.children.length+1;
     btn.onclick=()=>{st.closed[k]=!s.classList.contains("closed"); s.classList.toggle("closed"); save();};
     s.appendChild(btn);
     if(sec.photo){
       const d=document.createElement("details"); d.className="extra";
       d.innerHTML=`<summary>Фото раскладки столика</summary><img src="${PHOTO}" alt="Раскладка: брошюры слева, ключи и карта в центре, папки справа"><p>Слева брошюры и гайды веером, в центре две связки ключей и карта PLANO, справа папки «How to move around the city» и «Welcome to our apartment».</p>`;
+      s.appendChild(d);
+    }
+    const over=lastOver(sec), tips=TIPS[baseKey(k)];
+    if(over && tips){
+      const d=document.createElement("details"); d.className="tip";
+      d.innerHTML=`<summary>Как ускорить<small></small></summary><ol></ol>`;
+      d.querySelector("small").textContent=over;
+      tips.forEach(t=>{const li=document.createElement("li"); li.textContent=t; d.querySelector("ol").appendChild(li);});
       s.appendChild(d);
     }
     const ul=document.createElement("ul");
@@ -414,7 +494,7 @@ function render(){
       const cb=li.querySelector("input"); cb.checked=!!st.c[id]; li.classList.toggle("on",cb.checked);
       cb.onchange=()=>{
         const t=Date.now();
-        if(cb.checked){st.c[id]=1; beginSession(); if(st.pausedAt){st.pauses.push({f:st.pausedAt,t:t}); st.pausedAt=null;} st.log[id]=t;}
+        if(cb.checked){st.c[id]=1; if(!st.start){beginSession(); st.autoId=id;} if(st.pausedAt){st.pauses.push({f:st.pausedAt,t:t}); st.pausedAt=null;} st.log[id]=t;}
         else {delete st.c[id]; delete st.log[id];}
         li.classList.toggle("on",cb.checked); save(); update();
       };
@@ -435,7 +515,7 @@ function renderTabs(){
     const b=document.createElement("button"); b.type="button"; b.className="tab"+(view===i?" act":"");
     b.innerHTML=`<b></b><small>${n?n+" отмечено":"не начата"}, ${fmtBudget(a.budget)}</small>`;
     b.querySelector("b").textContent=a.name;
-    b.onclick=()=>{ if(view===i) return; view=i; cur=i; LS.set("uborka:active",i); st=load(a.key); render(); window.scrollTo({top:0}); };
+    b.onclick=()=>{ if(view===i) return; view=i; cur=i; cfg.lastApt=i; saveCfg(); LS.set("uborka:active",i); st=load(a.key); render(); window.scrollTo({top:0}); };
     box.appendChild(b);
   });
   const left=notes.filter(x=>!x.done).length;
@@ -466,7 +546,8 @@ function update(){
     const prev=h.items&&h.items[x.id];
     let txt="", cls="";
     if(x.cb.checked && it[x.id]!=null){
-      if(it[x.id]<5000){ txt="отмечено пачкой"; }
+      if(x.id===st.autoId){ txt="секундомер запущен с этой галочки"; }
+      else if(it[x.id]<5000){ txt="отмечено пачкой"; }
       else { txt=fmt(it[x.id]); const c=cmp(it[x.id],prev); if(c){ txt+=", "+c.txt; cls=c.cls; } }
     } else if(prev){ txt="в прошлый раз "+fmt(prev); }
     x.meta.textContent=txt; x.meta.className="meta "+cls; x.meta.style.display=txt?"":"none";
@@ -514,7 +595,7 @@ function tick(){
   const left=bud*60000-T; be.textContent=left>=0?"осталось "+fmt(left,true)+" из "+fmtBudget(bud):"перебор +"+fmt(-left,true); be.classList.toggle("over",left<0);
   const pp=document.getElementById("pp");
   const finished=!all.find(x=>!x.cb.checked);
-  pp.className="pp"+(st.pausedAt?" paused":st.start?" run":"");
+  pp.className="pp"+(st.pausedAt?" paused":st.start?" run":" idle");
   pp.textContent=!st.start?"Старт":st.pausedAt?"Продолжить":"Пауза";
   pp.style.display=finished?"none":"";
   const times=sectionTimes(), h=H(), rows=[];
@@ -523,17 +604,18 @@ function tick(){
     let el=s.querySelector(".cnt i"); if(!el){el=document.createElement("i"); s.querySelector(".cnt").appendChild(el);}
     el.textContent=times[k]?fmt(times[k]):"";
     el.classList.toggle("over",!!over);
-    const c=times[k]>=30000?cmp(times[k],h.sections&&h.sections[k]):null;
+    const secDone=s.classList.contains("complete");
     const prev=h.sections&&h.sections[k];
-    const sub=c?`<small class="${c.cls}">${c.txt}</small>`:(prev?`<small class="same">было ${fmt(prev)}</small>`:"");
-    rows.push(`<tr class="${over?"over":""}"><td>${sec.h}</td><td>${fmt(times[k])}${sub}</td><td>${sec.target?"цель "+sec.target+" мин":""}</td></tr>`);
+    const c=secDone&&times[k]>=30000?cmp(times[k],prev):null;
+    const sub=c?`<small class="${c.cls}">${c.txt}</small>`:(prev?`<small class="same">было ${fmt(prev)}</small>`:(k==="7"&&h.floorFinal?`<small class="same">было ${fmt(h.floorFinal)} с финалом</small>`:""));
+    rows.push(`<tr class="${over?"over":""}"><td>${esc(sec.h)}</td><td>${fmt(times[k])}${sub}</td><td>${sec.target?"цель "+sec.target+" мин":""}</td></tr>`);
   });
   const lastRun=h.runs&&h.runs.length?h.runs[h.runs.length-1].total:null;
   const ct=finished&&T?cmp(T,lastRun):null;
   rows.push(`<tr class="tot"><td>Всего</td><td>${fmt(T,true)}${ct?`<small class="${ct.cls}">${ct.txt}</small>`:""}</td><td>бюджет ${fmtBudget(bud)}</td></tr>`);
   document.getElementById("sumBody").innerHTML=rows.join("");
   const runs=(hist[A().id]&&hist[A().id].runs)||[];
-  document.getElementById("runs").textContent=runs.length?"Прошлые уборки: "+runs.slice(-5).reverse().map(r=>fmt(r.total,true)+" ("+r.date.slice(8,10)+"."+r.date.slice(5,7)+")").join(", "):"";
+  document.getElementById("runs").textContent=runs.length?"Прошлые уборки: "+runs.slice(-10).reverse().map(r=>fmt(r.total,true)+(r.date?" ("+r.date.slice(8,10)+"."+r.date.slice(5,7)+")":"")).join(", "):"";
 }
 setInterval(tick,1000);
 
@@ -563,6 +645,19 @@ document.getElementById("reset").onclick=()=>{
   if(st.start && !st.archived && Object.keys(st.c).length && confirm("Сохранить время этой уборки, чтобы сравнивать в следующий раз?")) archive();
   st=fresh(); save(); render(); window.scrollTo({top:0});
 };
+
+function renderCfg(){
+  const box=document.getElementById("cfg"); box.style.display=A().id==="14"?"":"none";
+  if(A().id!=="14") return;
+  const ch=document.getElementById("bathChips"); ch.innerHTML="";
+  [1,2].forEach(n=>{
+    const b=document.createElement("button"); b.type="button"; b.className="chip"+(cfg.baths14===n?" act":""); b.textContent=n;
+    b.onclick=()=>{ if(cfg.baths14===n) return; cfg.baths14=n; saveCfg(); rebuild14(); render(); };
+    ch.appendChild(b);
+  });
+  const inp=document.getElementById("dresserIn"); if(document.activeElement!==inp) inp.value=cfg.dresser14||"";
+}
+document.getElementById("dresserIn").addEventListener("change",e=>{ cfg.dresser14=e.target.value.trim(); saveCfg(); rebuild14(); render(); });
 
 // notes
 let noteTag=null;
