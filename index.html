@@ -149,7 +149,7 @@ li.on .meta.slow{color:var(--oak)}
 .tbl td small.slow{color:var(--oak)}
 .tbl td small.same{color:var(--muted)}
 .runs{font-size:13px;color:var(--muted);margin:10px 0 0;font-variant-numeric:tabular-nums}
-body.notes-mode .head, body.notes-mode .bar, body.notes-mode .nextrow, body.notes-mode #checkView, body.notes-mode .fab{display:none!important}
+body.notes-mode .head, body.notes-mode .scalewrap, body.notes-mode .pager, body.notes-mode .nextrow, body.notes-mode #checkView, body.notes-mode .fab{display:none!important}
 #notesView{display:none}
 body.notes-mode #notesView{display:block}
 .nh{font:700 22px/1.1 "Unbounded","Golos Text",sans-serif;margin:16px 0 12px}
@@ -182,6 +182,33 @@ section.closed .tip{display:none}
 #cfg .row span{color:var(--muted);min-width:0}
 #cfg input{flex:1;min-width:160px;font:400 16px "Golos Text",sans-serif;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
 #cfg input:focus{outline:none;border-color:var(--ink)}
+/* v3: percent scale, pages, remarks */
+.scale{display:flex;gap:2px;height:12px}
+.seg{flex:1 1 0;min-width:5px;padding:0;border:0;border-radius:3px;background:var(--line);overflow:hidden;cursor:pointer;position:relative}
+.seg i{display:block;height:100%;width:0;background:var(--oak);transition:width .3s}
+.seg.complete i{background:var(--sage)}
+.seg.cur{outline:2px solid var(--ink);outline-offset:1px}
+.scaleRow{display:flex;gap:10px;align-items:baseline;margin-top:6px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.scaleRow b{font:700 15px/1 "Unbounded",sans-serif;color:var(--ink)}
+.scaleRow span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+body.paged #list section:not(.cur){display:none}
+body.paged #list section{margin-top:14px}
+body.paged section.closed ul, body.paged section.closed .extra{display:block}
+body.paged section.closed .tip{display:block}
+body.paged .chev, body.paged .legend, body.paged #cfg{display:none!important}
+body.paged:not(.pg-sum) #summary, body.paged:not(.pg-sum) .finish, body.paged:not(.pg-sum) .reset{display:none}
+body.paged .fab{display:none}
+.pager{display:none;position:fixed;left:0;right:0;bottom:0;z-index:6;gap:8px;justify-content:center;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--line)}
+body.paged .pager{display:flex}
+.pager button{border:1.5px solid var(--ink);background:none;color:var(--ink);border-radius:24px;padding:13px 18px;font:600 16px/1 "Golos Text",sans-serif;cursor:pointer}
+.pager button.mid{flex:1;max-width:320px;background:var(--ink);color:var(--bg)}
+.pager button:disabled{opacity:.3}
+.pager button:focus-visible{outline:3px solid var(--oak);outline-offset:2px}
+li label{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+li.rem label{background:color-mix(in srgb,var(--oak) 13%,transparent)}
+.rmk{display:block;font-size:13px;margin-top:4px;color:var(--oak);font-weight:600}
+li.on .rmk{color:var(--oak)}
+.msg{margin-top:10px;width:100%;border:0;border-radius:8px;padding:12px;background:var(--ink);color:var(--bg);font:600 15px "Golos Text",sans-serif;cursor:pointer}
 .backup textarea{display:none;width:100%;min-height:120px;margin-top:10px;font:12px/1.4 ui-monospace,Menlo,monospace;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
 </style>
 </head>
@@ -194,12 +221,12 @@ section.closed .tip{display:none}
     <h1 id="aptName">Уборка</h1>
     <div class="stat"><div class="clock"><span class="time" id="time">0:00:00</span><button class="pp" id="pp" type="button">Старт</button></div><b id="done">0</b> / <span id="total">0</span> пунктов<br><span class="budget" id="budget"></span></div>
   </div>
-  <div class="bar"><i id="bar"></i></div>
+  <div class="scalewrap"><div class="scale" id="scale"></div><div class="scaleRow"><b id="pct">0%</b><span id="stage"></span></div></div>
   <div class="nextrow"><div class="next">Дальше: <span id="nextTxt">...</span></div><button class="qadd" id="qadd" type="button">+ Докупить</button></div>
 </header>
 
 <div id="checkView">
-  <div class="legend">полоска слева = особенность этой квартиры</div>
+  <div class="legend">полоска слева = особенность этой квартиры. Подержи палец на пункте = замечание Оксаны</div>
   <details class="extra" id="cfg"><summary>Настройки квартиры 14</summary>
     <div class="row"><span>Ванных:</span><span class="chips" id="bathChips" style="margin:0"></span></div>
     <div class="row"><span>Комод с Welcome-карточкой:</span><input id="dresserIn" type="text" placeholder="например, средняя спальня" enterkeyhint="done" autocomplete="off"></div>
@@ -212,6 +239,8 @@ section.closed .tip{display:none}
     <p class="runs" id="runs"></p>
     <p class="note">Под временем: сравнение с прошлой уборкой этой квартиры. Время пункта = от предыдущей галочки до этой. Отмеченное пачкой (меньше 5 сек) в историю не идёт.</p>
     <button class="copy" id="copy" type="button">Скопировать итог</button>
+    <button class="msg" id="msgG" type="button">Сообщение Габриэлле: что докупить</button>
+    <p class="note">Замечание Оксаны: открой этап на шкале сверху и подержи палец на пункте. В следующий раз он будет подсвечен.</p>
     <textarea id="copyBox" readonly></textarea>
   </section>
   <p class="finish" id="finish">Готово. Квартира сдана.</p>
@@ -225,6 +254,8 @@ section.closed .tip{display:none}
   <ul class="nl" id="notesList"></ul>
   <p class="empty" id="notesEmpty">Пока пусто. Добавляй сюда, что закончилось в квартирах.</p>
   <button class="ghost" id="clearBought" type="button">Удалить купленное</button>
+  <button class="msg" id="msgAll" type="button">Сообщение Габриэлле</button>
+  <textarea id="msgBox" style="display:none;width:100%;min-height:140px;margin-top:10px;font:14px/1.4 'Golos Text',sans-serif;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px" readonly></textarea>
 
   <div class="backup">
     <h3>Резервная копия</h3>
@@ -236,6 +267,7 @@ section.closed .tip{display:none}
 </div>
 </div>
 <button class="fab" id="fab">К следующему</button>
+<nav class="pager" aria-label="Этапы"><button id="pgPrev" type="button" aria-label="Предыдущий этап">←</button><button id="pgMid" class="mid" type="button">К следующему</button><button id="pgNext" type="button" aria-label="Следующий этап">→</button></nav>
 
 <script>
 const S = true;
@@ -411,6 +443,26 @@ if(!hist._v){
   hist._v=2; LS.set("uborka:hist",hist);
 }
 const saveCfg=()=>LS.set("uborka:cfg",cfg);
+let remarks=LS.get("uborka:remarks",{});
+const saveRemarks=()=>LS.set("uborka:remarks",remarks);
+const remOf=id=>(remarks[A().id]||{})[id];
+function editRemark(id,title){
+  const cur=remOf(id);
+  const t=prompt("Замечание Оксаны к пункту «"+title+"»\n(сотри текст, чтобы убрать)", cur?cur.t:"");
+  if(t===null) return;
+  const r=remarks[A().id]||(remarks[A().id]={});
+  if(t.trim()) r[id]={t:t.trim(),d:new Date().toISOString().slice(0,10)}; else delete r[id];
+  saveRemarks(); render();
+}
+function longPress(el,fn){
+  let tm=null, x0=0, y0=0, fired=false;
+  const stop=()=>{clearTimeout(tm); tm=null;};
+  el.addEventListener("pointerdown",e=>{ fired=false; x0=e.clientX; y0=e.clientY; stop(); tm=setTimeout(()=>{fired=true; tm=null; fn();},550); });
+  el.addEventListener("pointermove",e=>{ if(tm && Math.hypot(e.clientX-x0,e.clientY-y0)>10) stop(); });
+  ["pointerup","pointercancel","pointerleave"].forEach(ev=>el.addEventListener(ev,stop));
+  el.addEventListener("click",e=>{ if(fired){ e.preventDefault(); fired=false; } });
+  el.addEventListener("contextmenu",e=>e.preventDefault());
+}
 let notes=LS.get("uborka:notes",[]);
 let view=LS.get("uborka:active",0); if(view!=="notes" && !APTS[view]) view=0;
 let cur=view==="notes"?(APTS[cfg.lastApt]?cfg.lastApt:0):view;
@@ -461,6 +513,13 @@ function render(){
   renderTabs();
   if(view==="notes"){ renderNotes(); return; }
   list.innerHTML=""; all=[];
+  const sc=document.getElementById("scale"); sc.innerHTML="";
+  D().forEach(sec=>{
+    const b=document.createElement("button"); b.type="button"; b.className="seg"; b.dataset.k=sec.k;
+    b.style.flexGrow=sec.items.length; b.setAttribute("aria-label",sec.h); b.innerHTML="<i></i>";
+    b.onclick=()=>{ if(paged()) goPage(sec.k); else { const el=list.querySelector(`section[data-k="${sec.k}"]`); if(el){ el.classList.remove("closed"); st.closed[sec.k]=false; save(); el.scrollIntoView({behavior:"smooth"}); } } };
+    sc.appendChild(b);
+  });
   document.getElementById("aptName").textContent=A().name;
   renderCfg();
   D().forEach(sec=>{
@@ -469,7 +528,7 @@ function render(){
     const btn=document.createElement("button"); btn.className="sh"; btn.type="button";
     btn.innerHTML=`<span class="num"></span><h2>${esc(sec.h)}<small>${esc(sec.m)}</small></h2><span class="cnt"></span><span class="chev" aria-hidden="true"></span>`;
     btn.querySelector(".num").textContent=list.children.length+1;
-    btn.onclick=()=>{st.closed[k]=!s.classList.contains("closed"); s.classList.toggle("closed"); save();};
+    btn.onclick=()=>{ if(paged()) return; st.closed[k]=!s.classList.contains("closed"); s.classList.toggle("closed"); save();};
     s.appendChild(btn);
     if(sec.photo){
       const d=document.createElement("details"); d.className="extra";
@@ -491,12 +550,17 @@ function render(){
       li.innerHTML=`<label><input type="checkbox"><span class="box"></span><span class="tx"><b></b>${it.n?"<em></em>":""}<span class="meta"></span></span></label>`;
       li.querySelector("b").textContent=it.t;
       if(it.n) li.querySelector("em").textContent=it.n;
+      const rm=remOf(id);
+      if(rm){ li.classList.add("rem"); const r=document.createElement("span"); r.className="rmk"; r.textContent="Оксана: "+rm.t+" ("+rm.d.slice(8,10)+"."+rm.d.slice(5,7)+")"; li.querySelector(".tx").insertBefore(r,li.querySelector(".meta")); }
+      longPress(li.querySelector("label"),()=>editRemark(id,it.t));
       const cb=li.querySelector("input"); cb.checked=!!st.c[id]; li.classList.toggle("on",cb.checked);
       cb.onchange=()=>{
         const t=Date.now();
         if(cb.checked){st.c[id]=1; if(!st.start){beginSession(); st.autoId=id;} if(st.pausedAt){st.pauses.push({f:st.pausedAt,t:t}); st.pausedAt=null;} st.log[id]=t;}
         else {delete st.c[id]; delete st.log[id];}
         li.classList.toggle("on",cb.checked); save(); update();
+        if(cb.checked && paged() && curPage()===k && all.filter(x=>x.k===k).every(x=>x.cb.checked))
+          setTimeout(()=>{ if(paged() && curPage()===k) goPage(nextOpen(k)); },650);
       };
       ul.appendChild(li); all.push({id,li,cb,k,t:it.t,meta:li.querySelector(".meta")});
     });
@@ -513,7 +577,7 @@ function renderTabs(){
   APTS.forEach((a,i)=>{
     const s=i===cur?st:load(a.key), n=Object.keys(s.c).length;
     const b=document.createElement("button"); b.type="button"; b.className="tab"+(view===i?" act":"");
-    b.innerHTML=`<b></b><small>${n?n+" отмечено":"не начата"}, ${fmtBudget(a.budget)}</small>`;
+    b.innerHTML=`<b></b><small>${n?n+" отмечено":s.start?"идёт":"не начата"}, ${fmtBudget(a.budget)}</small>`;
     b.querySelector("b").textContent=a.name;
     b.onclick=()=>{ if(view===i) return; view=i; cur=i; cfg.lastApt=i; saveCfg(); LS.set("uborka:active",i); st=load(a.key); render(); window.scrollTo({top:0}); };
     box.appendChild(b);
@@ -529,7 +593,7 @@ function update(){
   const n=all.filter(x=>x.cb.checked).length;
   document.getElementById("done").textContent=n;
   document.getElementById("total").textContent=all.length;
-  document.getElementById("bar").style.width=(n/all.length*100)+"%";
+  document.getElementById("pct").textContent=Math.round(all.length?n/all.length*100:0)+"%";
   document.querySelectorAll("#list section").forEach(s=>{
     const items=all.filter(x=>x.k===s.dataset.k), d=items.filter(x=>x.cb.checked).length;
     const c=s.querySelector(".cnt"); let sp=c.querySelector("span"); if(!sp){sp=document.createElement("span"); c.prepend(sp);} sp.textContent=d+"/"+items.length;
@@ -553,7 +617,44 @@ function update(){
     x.meta.textContent=txt; x.meta.className="meta "+cls; x.meta.style.display=txt?"":"none";
   });
   renderTabs();
+  applyPage();
   tick();
+}
+function updateScale(){
+  const p=paged()?curPage():null;
+  document.querySelectorAll("#scale .seg").forEach(b=>{
+    const items=all.filter(x=>x.k===b.dataset.k), d=items.filter(x=>x.cb.checked).length;
+    b.querySelector("i").style.width=(items.length?d/items.length*100:0)+"%";
+    b.classList.toggle("complete",items.length>0&&d===items.length);
+    b.classList.toggle("cur",b.dataset.k===p);
+  });
+}
+const paged=()=>!!st.start && view!=="notes";
+const pages=()=>D().map(s=>s.k).concat("sum");
+function curPage(){
+  if(st.page && pages().includes(st.page)) return st.page;
+  const nx=all.find(x=>!x.cb.checked); return nx?nx.k:"sum";
+}
+function nextOpen(k){
+  const ks=D().map(s=>s.k), i=ks.indexOf(k);
+  const open=kk=>all.some(x=>x.k===kk&&!x.cb.checked);
+  return ks.slice(i+1).find(open)||ks.slice(0,i).find(open)||"sum";
+}
+function goPage(k){ st.page=k; save(); applyPage(); window.scrollTo({top:0}); }
+function applyPage(){
+  const on=paged(), p=on?curPage():null;
+  document.body.classList.toggle("paged",on);
+  document.body.classList.toggle("pg-sum",p==="sum");
+  document.querySelectorAll("#list section").forEach(s=>s.classList.toggle("cur",s.dataset.k===p));
+  const ps=pages(), i=ps.indexOf(p);
+  document.getElementById("pgPrev").disabled=!on||i<=0;
+  document.getElementById("pgNext").disabled=!on||i>=ps.length-1;
+  const stage=document.getElementById("stage");
+  if(!on) stage.textContent="";
+  else if(p==="sum") stage.textContent="Итог";
+  else { const sec=D().find(s=>s.k===p), items=all.filter(x=>x.k===p); stage.textContent="этап "+(i+1)+" из "+D().length+" · "+sec.h+" · "+items.filter(x=>x.cb.checked).length+"/"+items.length; }
+  document.getElementById("pgMid").textContent=all.some(x=>!x.cb.checked)?"К следующему":"Итог";
+  updateScale();
 }
 function pausedBetween(a,b){
   const ps=st.pauses.concat(st.pausedAt?[{f:st.pausedAt,t:Date.now()}]:[]);
@@ -624,8 +725,37 @@ document.getElementById("pp").onclick=()=>{
   if(!st.start) beginSession();
   else if(st.pausedAt){st.pauses.push({f:st.pausedAt,t:t}); st.pausedAt=null;}
   else st.pausedAt=t;
-  save(); tick();
+  save(); tick(); applyPage();
 };
+document.getElementById("pgPrev").onclick=()=>{ const ps=pages(), i=ps.indexOf(curPage()); if(i>0) goPage(ps[i-1]); };
+document.getElementById("pgNext").onclick=()=>{ const ps=pages(), i=ps.indexOf(curPage()); if(i<ps.length-1) goPage(ps[i+1]); };
+document.getElementById("pgMid").onclick=()=>{
+  const nx=all.find(x=>!x.cb.checked); if(!nx){ goPage("sum"); return; }
+  if(curPage()!==nx.k) goPage(nx.k);
+  setTimeout(()=>{ nx.li.scrollIntoView({behavior:"smooth",block:"center"}); nx.li.classList.remove("flash"); void nx.li.offsetWidth; nx.li.classList.add("flash"); },50);
+};
+// message for Gabriella: shopping list only, no time summary
+function msgText(aptId){
+  const dd=new Date(), date=String(dd.getDate()).padStart(2,"0")+"."+String(dd.getMonth()+1).padStart(2,"0");
+  const open=notes.filter(x=>!x.done);
+  const line=x=>"— "+x.t;
+  if(aptId){
+    const a=APTS.find(a=>a.id===aptId), list=open.filter(x=>x.apt===aptId||!x.apt);
+    const done=!all.some(x=>!x.cb.checked);
+    return a.name+", "+date+(done?": уборка готова.":".")+"\n"+(list.length?"Нужно докупить:\n"+list.map(line).join("\n"):"Докупать ничего не нужно.");
+  }
+  const groups=[{id:"",name:"Общее"}].concat(APTS.map(a=>({id:a.id,name:a.name})))
+    .map(g=>({g,l:open.filter(x=>(x.apt||"")===g.id)})).filter(x=>x.l.length);
+  return groups.length?"Нужно докупить ("+date+"):\n"+groups.map(x=>x.g.name+":\n"+x.l.map(line).join("\n")).join("\n\n"):"Докупать ничего не нужно.";
+}
+async function sendMsg(txt,btn,box){
+  if(navigator.share){ try{ await navigator.share({text:txt}); return; }catch(e){ if(e&&e.name==="AbortError") return; } }
+  const label=btn.textContent;
+  try{ await navigator.clipboard.writeText(txt); btn.textContent="Скопировано, вставь в чат"; setTimeout(()=>btn.textContent=label,1800); }
+  catch(e){ box.style.display="block"; box.value=txt; box.focus(); box.select(); }
+}
+document.getElementById("msgG").onclick=()=>sendMsg(msgText(A().id),document.getElementById("msgG"),document.getElementById("copyBox"));
+document.getElementById("msgAll").onclick=()=>sendMsg(msgText(null),document.getElementById("msgAll"),document.getElementById("msgBox"));
 document.getElementById("copy").onclick=async()=>{
   const times=sectionTimes();
   const txt=A().name+", время по этапам:\n"+D().map(s=>s.h+": "+fmt(times[s.k])+(s.target?" (цель "+s.target+" мин)":"")).join("\n")+"\nВсего: "+fmt(total(),true)+" (бюджет "+fmtBudget(A().budget)+")";
